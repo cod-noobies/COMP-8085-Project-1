@@ -1,33 +1,60 @@
-import numpy as np
 import pandas as pd
-from sklearn.datasets import make_classification
-from sklearn.model_selection import cross_val_score, RepeatedStratifiedKFold
+import seaborn as sns
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder
-from sklearn.tree import DecisionTreeClassifier
+from sklearn import metrics
+import matplotlib.pyplot as plt
 
 df = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False, nrows=100000)
+for column in df.select_dtypes(include=[object]):
+    df[column] = df[column].factorize()[0]
 
-label_encoders = {}
-for column in df.columns:
-    if df[column].dtype == type(object):
-        le = LabelEncoder()
-        df[column] = le.fit_transform(df[column].astype(str))
-        label_encoders[column] = le
-
-print(df.head())
 X = df.drop(['Label'], axis=1)
 y = df['Label']
 
-X, y = make_classification(n_samples=10000, n_features=10, n_informative=5, n_redundant=5, random_state=1)
-rfe = RFE(estimator=DecisionTreeClassifier(), n_features_to_select=3)
-model = DecisionTreeClassifier()  # Instantiate a model
-pipeline = Pipeline(steps=[('s', rfe), ('m', model)])
+print(df.head())
 
-cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1)
 
-n_scores = cross_val_score(pipeline, X, y, scoring='accuracy', cv=cv, n_jobs=-1, error_score='raise')
+model = RandomForestClassifier()
+rfe = RFE(estimator=model, n_features_to_select=6)
+rfe.fit(X_train, y_train)
 
-print('Cross-validation Accuracy: %.2f (%.2f)' % (np.mean(n_scores), np.std(n_scores)))
+features_df = pd.DataFrame({
+    'Feature': X_train.columns,
+    'Selected': rfe.support_,
+    'Ranking': rfe.ranking_
+})
+print("\nFeature Selection and Ranking:")
+print(features_df)
 
+X_train_rfe = rfe.transform(X_train)
+X_val_rfe = rfe.transform(X_test)
+
+model.fit(X_train_rfe, y_train)
+
+y_val_pred = model.predict(X_val_rfe)
+val_accuracy = metrics.accuracy_score(y_test, y_val_pred)
+
+print("\nValidation Accuracy:", val_accuracy)
+print("Selected Features:", X.columns[rfe.support_].tolist())
+report = classification_report(y_test, y_val_pred, target_names=['0', '1'])
+
+
+print(f"Classifier: {model.__class__.__name__}\n")
+print(report)
+
+importances = model.feature_importances_
+feature_importances = pd.DataFrame({
+    'Feature': X.columns[rfe.support_],
+    'Importance': importances
+})
+feature_importances = feature_importances.sort_values('Importance', ascending=False)
+
+# plot
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Importance', y='Feature', data=feature_importances)
+plt.title('Feature Importances')
+plt.show()
