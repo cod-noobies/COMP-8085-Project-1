@@ -6,10 +6,22 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFE
 from sklearn import metrics
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
 
-df = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False, nrows=100000)
-for column in df.select_dtypes(include=[object]):
-    df[column] = df[column].factorize()[0]
+df = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False, nrows=10000)
+
+categorical_cols = df.select_dtypes(include=['object']).columns
+numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+
+df[categorical_cols] = df[categorical_cols].fillna('Missing')
+df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
+
+label_encoders = {}
+for col in categorical_cols:
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col].astype(str))
+    label_encoders[col] = le
 
 X = df.drop(['Label'], axis=1)
 y = df['Label']
