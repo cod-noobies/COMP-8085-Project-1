@@ -13,7 +13,9 @@ from IPython.display import Image
 import pydotplus
 from tabulate import tabulate
 
-df = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False, nrows=1000)
+
+## this only tries the first 100000 rows of the dataset
+df = pd.read_csv('UNSW-NB15-BALANCED-TRAIN.csv', low_memory=False, nrows=100000)
 
 categorical_cols = df.select_dtypes(include=['object']).columns
 numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
@@ -26,8 +28,9 @@ for col in categorical_cols:
     le = LabelEncoder()
     df[col] = le.fit_transform(df[col].astype(str))
     label_encoders[col] = le
-
-X = df.drop(['Label'], axis=1)
+# removing attack_cat and label columns from the x
+X = df.drop(['attack_cat', 'Label'], axis=1)
+# for the part 1 and 2 we will use label and after we will try to use attack_cat
 y = df['Label']
 
 print(df.head())
@@ -35,8 +38,8 @@ print(df.head())
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=1)
 # tested esimators: RandomForestClassifier, DecisionTreeClassifier, LinearRegression, SVC, GradientBoostingClassifier
 # the most realistic results are obtained with LinearRegression
-estimator = LinearRegression()
-rfe = RFE(estimator=estimator, n_features_to_select=4)
+estimator = DecisionTreeClassifier()
+rfe = RFE(estimator=estimator, n_features_to_select=8)
 rfe.fit(X_train, y_train)
 
 features_df = pd.DataFrame({
@@ -50,7 +53,7 @@ print(features_df)
 X_train_rfe = rfe.transform(X_train)
 X_test_rfe = rfe.transform(X_test)
 
-model = DecisionTreeClassifier(criterion='entropy', max_depth=4)
+model = DecisionTreeClassifier(criterion='entropy', max_depth=3)
 model = model.fit(X_train_rfe, y_train)
 
 y_pred = model.predict(X_test_rfe)
